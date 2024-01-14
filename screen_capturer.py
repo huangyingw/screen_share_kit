@@ -93,9 +93,4 @@ def on_release(key):
 
 
 if __name__ == "__main__":
-    print("Listening for 'Ctrl + Command + J' to take a screenshot...")
-    # 启动监听器来监听按键
-    with keyboard.Listener(
-        on_press=on_press, on_release=on_release
-    ) as listener:
-        listener.join()
+    take_screenshot_and_send()
