@@ -1,3 +1,4 @@
+#!/usr/local/bin/python3
 import paramiko
 import os
 import pygetwindow as gw
