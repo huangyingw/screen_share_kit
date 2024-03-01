@@ -1,3 +1,5 @@
 [remote "origin"]
 	url = git@github.com:huangyingw/screen_share_kit.git
 	fetch = +refs/heads/*:refs/remotes/origin/*
+[push]
+    remote = origin
