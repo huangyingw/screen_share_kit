@@ -2,7 +2,6 @@
 import paramiko
 import os
 import pyautogui
-from pynput import keyboard
 import time
 
 
@@ -61,37 +60,6 @@ def send_file_ssh(remote_host, remote_port, local_path, remote_path):
     finally:
         if ssh:
             ssh.close()
-
-
-# 用于跟踪按键状态的集合
-keys_pressed = set()
-
-
-def on_press(key):
-    """
-    Defines the action to be taken on key press.
-    """
-    # 将按下的键添加到集合中
-    keys_pressed.add(key)
-
-    # 检查是否按下了指定的快捷键组合
-    if (
-        keyboard.Key.cmd in keys_pressed
-        and keyboard.Key.ctrl in keys_pressed
-        and keyboard.KeyCode.from_char("j") in keys_pressed
-    ):
-        take_screenshot_and_send()
-
-
-def on_release(key):
-    """
-    Removes the key from the set when it is released.
-    """
-    # 将释放的键从集合中移除
-    try:
-        keys_pressed.remove(key)
-    except KeyError:
-        pass  # 忽略未被跟踪的按键
 
 
 if __name__ == "__main__":
