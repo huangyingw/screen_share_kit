@@ -1,7 +1,6 @@
 #!/usr/local/bin/python3
 import paramiko
 import os
-import pygetwindow as gw
 import pyautogui
 from pynput import keyboard
 import time
@@ -30,24 +29,26 @@ def take_screenshot_and_send():
 
 
 def send_file_ssh(remote_host, remote_port, local_path, remote_path):
-    # SSH和SCP逻辑
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(remote_host, port=remote_port)
-
-    # 获取远程主目录并解析远程路径
-    stdin, stdout, stderr = ssh.exec_command("echo $HOME")
-    home_directory = stdout.read().strip().decode()
-    real_remote_path = os.path.join(home_directory, remote_path.strip("~/"))
-
-    # 使用SCP发送文件
-    scp = paramiko.SFTPClient.from_transport(ssh.get_transport())
-    scp.put(local_path, real_remote_path)
-    scp.close()
-
-    # 修改剪贴板
-    command = f"osascript -e 'set the clipboard to (read (POSIX file \"{real_remote_path}\") as JPEG picture)'"
+    """
+    Sends a file to a remote host via SSH and updates the clipboard.
+    """
+    ssh = None
     try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(remote_host, port=remote_port)
+
+        # 获取远程主目录并解析远程路径
+        stdin, stdout, stderr = ssh.exec_command("echo $HOME")
+        home_directory = stdout.read().strip().decode()
+        real_remote_path = os.path.join(home_directory, remote_path.strip("~/"))
+
+        # 使用SCP发送文件
+        with paramiko.SFTPClient.from_transport(ssh.get_transport()) as scp:
+            scp.put(local_path, real_remote_path)
+
+        # 修改剪贴板
+        command = f"osascript -e 'set the clipboard to (read (POSIX file \"{real_remote_path}\") as JPEG picture)'"
         stdin, stdout, stderr = ssh.exec_command(command)
         exit_status = stdout.channel.recv_exit_status()  # 阻塞直到远程执行结束
         if exit_status == 0:
@@ -56,9 +57,10 @@ def send_file_ssh(remote_host, remote_port, local_path, remote_path):
             print(f"Remote command failed with exit status {exit_status}")
             print("Error:", stderr.read().decode())
     except Exception as e:
-        print(f"Error executing remote command: {e}")
-
-    ssh.close()
+        print(f"Error during SSH operation: {e}")
+    finally:
+        if ssh:
+            ssh.close()
 
 
 # 用于跟踪按键状态的集合
