@@ -1,11 +1,11 @@
 #!/usr/local/bin/python3
-import paramiko
 import os
+import paramiko
 import pyautogui
-import sys
-import venv
-import time
 import subprocess
+import sys
+import time
+import venv
 
 # 常量定义
 VENV_NAME = "venv"
@@ -67,9 +67,6 @@ def main():
 
 def take_screenshot_and_send():
     # 导入需要的模块
-    import paramiko
-    import pyautogui
-    import time
 
     print("Attempting to take a screenshot...")
     try:
