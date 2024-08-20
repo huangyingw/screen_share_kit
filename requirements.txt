@@ -1,0 +1,2 @@
+paramiko==2.7.2
+pyautogui==0.9.52
