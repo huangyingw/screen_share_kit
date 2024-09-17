@@ -77,7 +77,7 @@ def take_screenshot_and_send():
         # 定义要发送到的远程机器的参数
         remote_host = "macmini.local"
         remote_port = 22  # SSH端口
-        remote_path = "~/Downloads/screenshot.png"
+        remote_path = "~/screenshot.png"
         # 发送文件
         send_file_ssh(remote_host, remote_port, local_path, remote_path)
     except Exception as e:
