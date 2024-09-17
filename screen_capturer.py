@@ -6,6 +6,18 @@ import subprocess
 import sys
 import time
 import venv
+import logging
+
+# 常量定义
+VENV_NAME = "venv"
+REQUIREMENTS_FILE = "requirements.txt"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+VENV_PATH = os.path.join(SCRIPT_DIR, VENV_NAME)
+LOG_FILE = os.path.join(SCRIPT_DIR, "screen_capturer.log")
+
+# 设置日志
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 常量定义
 VENV_NAME = "venv"
@@ -66,54 +78,71 @@ def main():
 
 
 def take_screenshot_and_send():
-    # 导入需要的模块
-
-    print("Attempting to take a screenshot...")
+    logging.info("Attempting to take a screenshot...")
     try:
         screenshot = pyautogui.screenshot()
         local_path = os.path.join(SCRIPT_DIR, "screenshot.png")
         screenshot.save(local_path)
-        print(f"Screenshot taken and saved as '{local_path}'.")
-        # 定义要发送到的远程机器的参数
+        logging.info(f"Screenshot taken and saved as '{local_path}'.")
+
         remote_host = "macmini.local"
-        remote_port = 22  # SSH端口
         remote_path = "~/screenshot.png"
-        # 发送文件
-        send_file_ssh(remote_host, remote_port, local_path, remote_path)
-    except Exception as e:
-        print(f"Error taking screenshot: {e}")
 
-
-def send_file_ssh(remote_host, remote_port, local_path, remote_path):
-    # SSH文件发送逻辑
-    ssh = None
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(remote_host, port=remote_port)
-        # 获取远程主目录并解析远程路径
-        stdin, stdout, stderr = ssh.exec_command("echo $HOME")
-        home_directory = stdout.read().strip().decode()
-        real_remote_path = os.path.join(
-            home_directory, remote_path.strip("~/")
-        )
-        # 使用SCP发送文件
-        with paramiko.SFTPClient.from_transport(ssh.get_transport()) as scp:
-            scp.put(local_path, real_remote_path)
-        # 修改剪贴板
-        command = f"osascript -e 'set the clipboard to (read (POSIX file \"{real_remote_path}\") as JPEG picture)'"
-        stdin, stdout, stderr = ssh.exec_command(command)
-        exit_status = stdout.channel.recv_exit_status()  # 阻塞直到远程执行结束
-        if exit_status == 0:
-            print("Remote command executed successfully.")
+        if send_file_rsync(local_path, f"{remote_host}:{remote_path}"):
+            logging.info("Screenshot sent successfully.")
+            if update_remote_clipboard(remote_host, remote_path):
+                logging.info("Remote clipboard updated successfully.")
+            else:
+                logging.error("Failed to update remote clipboard.")
         else:
-            print(f"Remote command failed with exit status {exit_status}")
-            print("Error:", stderr.read().decode())
+            logging.error("Failed to send screenshot.")
     except Exception as e:
-        print(f"Error during SSH operation: {e}")
-    finally:
-        if ssh:
-            ssh.close()
+        logging.exception(f"Error taking or sending screenshot: {e}")
+
+
+def send_file_rsync(local_path, remote_path):
+    try:
+        command = ["rsync", "-avz", "--progress", local_path, remote_path]
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode == 0:
+            logging.info(f"rsync output: {result.stdout}")
+            return True
+        else:
+            logging.error(f"rsync error: {result.stderr}")
+            return False
+    except Exception as e:
+        logging.exception(f"Error during rsync operation: {e}")
+        return False
+
+
+def update_remote_clipboard(remote_host, remote_path):
+    try:
+        # 首先获取远程主机上的 HOME 路径
+        get_home_cmd = ["ssh", remote_host, "echo $HOME"]
+        home_result = subprocess.run(get_home_cmd, capture_output=True, text=True)
+        if home_result.returncode != 0:
+            logging.error(f"Failed to get remote HOME: {home_result.stderr}")
+            return False
+        
+        remote_home = home_result.stdout.strip()
+        full_remote_path = f"{remote_home}/{os.path.basename(remote_path)}"
+        
+        # 使用完整的绝对路径更新剪贴板
+        osascript_cmd = f'''
+        osascript -e 'set the clipboard to (read (POSIX file "{full_remote_path}") as JPEG picture)'
+        '''
+        command = ["ssh", remote_host, osascript_cmd]
+        
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode == 0:
+            logging.info("Remote clipboard updated successfully.")
+            return True
+        else:
+            logging.error(f"Remote clipboard update error: {result.stderr}")
+            return False
+    except Exception as e:
+        logging.exception(f"Error updating remote clipboard: {e}")
+        return False
 
 
 if __name__ == "__main__":
