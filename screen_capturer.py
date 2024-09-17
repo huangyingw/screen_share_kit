@@ -16,8 +16,11 @@ VENV_PATH = os.path.join(SCRIPT_DIR, VENV_NAME)
 LOG_FILE = os.path.join(SCRIPT_DIR, "screen_capturer.log")
 
 # 设置日志
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
 # 常量定义
 VENV_NAME = "venv"
@@ -119,20 +122,22 @@ def update_remote_clipboard(remote_host, remote_path):
     try:
         # 首先获取远程主机上的 HOME 路径
         get_home_cmd = ["ssh", remote_host, "echo $HOME"]
-        home_result = subprocess.run(get_home_cmd, capture_output=True, text=True)
+        home_result = subprocess.run(
+            get_home_cmd, capture_output=True, text=True
+        )
         if home_result.returncode != 0:
             logging.error(f"Failed to get remote HOME: {home_result.stderr}")
             return False
-        
+
         remote_home = home_result.stdout.strip()
         full_remote_path = f"{remote_home}/{os.path.basename(remote_path)}"
-        
+
         # 使用完整的绝对路径更新剪贴板
-        osascript_cmd = f'''
+        osascript_cmd = f"""
         osascript -e 'set the clipboard to (read (POSIX file "{full_remote_path}") as JPEG picture)'
-        '''
+        """
         command = ["ssh", remote_host, osascript_cmd]
-        
+
         result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode == 0:
             logging.info("Remote clipboard updated successfully.")
