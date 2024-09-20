@@ -1,10 +1,7 @@
 #!/usr/local/bin/python3
 import os
-import paramiko
-import pyautogui
 import subprocess
 import sys
-import time
 import venv
 import logging
 
@@ -81,6 +78,9 @@ def main():
 
 
 def take_screenshot_and_send():
+    # 在函数内部导入 pyautogui
+    import pyautogui
+
     logging.info("Attempting to take a screenshot...")
     try:
         screenshot = pyautogui.screenshot()
@@ -104,6 +104,9 @@ def take_screenshot_and_send():
 
 
 def send_file_rsync(local_path, remote_path):
+    # 如果 send_file_rsync 使用了 paramiko，可以在这里导入
+    # import paramiko
+
     try:
         command = ["rsync", "-avz", "--progress", local_path, remote_path]
         result = subprocess.run(command, capture_output=True, text=True)
