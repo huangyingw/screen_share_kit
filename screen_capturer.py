@@ -6,10 +6,7 @@ import venv
 import logging
 
 # 常量定义
-VENV_NAME = "venv"
-REQUIREMENTS_FILE = "requirements.txt"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-VENV_PATH = os.path.join(SCRIPT_DIR, VENV_NAME)
 LOG_FILE = os.path.join(SCRIPT_DIR, "screen_capturer.log")
 
 # 设置日志
@@ -77,16 +74,100 @@ def main():
         take_screenshot_and_send()
 
 
-def take_screenshot_and_send():
-    # 在函数内部导入 pyautogui
-    import pyautogui
+def get_active_window():
+    from Quartz import (
+        CGWindowListCopyWindowInfo,
+        kCGWindowListOptionOnScreenOnly,
+        kCGNullWindowID,
+    )
+    from Cocoa import NSWorkspace
 
+    # 获取当前活动应用程序的 PID
+    workspace = NSWorkspace.sharedWorkspace()
+    active_app = workspace.frontmostApplication()
+    active_pid = active_app.processIdentifier()
+
+    # 获取所有在屏幕上的窗口
+    window_list = CGWindowListCopyWindowInfo(
+        kCGWindowListOptionOnScreenOnly, kCGNullWindowID
+    )
+
+    # 遍历窗口列表，找到与活动应用程序匹配的窗口
+    for window in window_list:
+        pid = window.get("kCGWindowOwnerPID", None)
+        if pid != active_pid:
+            continue
+        # 检查窗口层级
+        if window.get("kCGWindowLayer", 1) != 0:
+            continue
+        # 获取窗口 ID 和边界
+        window_id = window.get("kCGWindowNumber", None)
+        bounds = window.get("kCGWindowBounds", None)
+        if window_id and bounds:
+            return window_id, bounds
+    return None, None
+
+
+def take_screenshot_and_send():
     logging.info("Attempting to take a screenshot...")
     try:
-        screenshot = pyautogui.screenshot()
         local_path = os.path.join(SCRIPT_DIR, "screenshot.png")
-        screenshot.save(local_path)
-        logging.info(f"Screenshot taken and saved as '{local_path}'.")
+
+        if sys.platform == "darwin":  # macOS
+            window_id, bounds = get_active_window()
+            if not window_id or not bounds:
+                logging.error("Failed to get active window.")
+                return
+
+            # 将窗口边界转换为 CGRect
+            from Quartz import (
+                CGRectMake,
+                CGWindowListCreateImage,
+                kCGWindowImageDefault,
+                kCGWindowListOptionIncludingWindow,
+            )
+            from Quartz import (
+                CGImageDestinationCreateWithURL,
+                CGImageDestinationAddImage,
+                CGImageDestinationFinalize,
+            )
+            from Foundation import NSURL
+
+            x = bounds.get("X", 0)
+            y = bounds.get("Y", 0)
+            width = bounds.get("Width", 0)
+            height = bounds.get("Height", 0)
+
+            rect = CGRectMake(x, y, width, height)
+
+            # 截取窗口截图
+            image = CGWindowListCreateImage(
+                rect,
+                kCGWindowListOptionIncludingWindow,
+                window_id,
+                kCGWindowImageDefault,
+            )
+
+            if image:
+                # 手动定义 kUTTypePNG
+                kUTTypePNG = "public.png"
+                # 保存截图
+                url = NSURL.fileURLWithPath_(local_path)
+                dest = CGImageDestinationCreateWithURL(
+                    url, kUTTypePNG, 1, None
+                )
+                CGImageDestinationAddImage(dest, image, None)
+                CGImageDestinationFinalize(dest)
+                logging.info(f"Screenshot taken and saved as '{local_path}'.")
+            else:
+                logging.error("Failed to capture the window image.")
+                return
+        else:
+            logging.error("This script only supports macOS.")
+            return
+
+        # 将截图复制到本地剪贴板
+        copy_screenshot_to_clipboard(local_path)
 
         remote_host = "macmini.local"
         remote_path = "~/screenshot.png"
@@ -103,10 +184,26 @@ def take_screenshot_and_send():
         logging.exception(f"Error taking or sending screenshot: {e}")
 
 
-def send_file_rsync(local_path, remote_path):
-    # 如果 send_file_rsync 使用了 paramiko，可以在这里导入
-    # import paramiko
+def copy_screenshot_to_clipboard(image_path):
+    logging.info("Copying screenshot to local clipboard...")
+    try:
+        if sys.platform == "darwin":  # macOS
+            subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    f'set the clipboard to (read (POSIX file "{image_path}") as JPEG picture)',
+                ],
+                check=True,
+            )
+            logging.info("Screenshot copied to local clipboard successfully.")
+        else:
+            logging.error("This script only supports macOS.")
+    except Exception as e:
+        logging.exception(f"Error copying screenshot to local clipboard: {e}")
 
+
+def send_file_rsync(local_path, remote_path):
     try:
         command = ["rsync", "-avz", "--progress", local_path, remote_path]
         result = subprocess.run(command, capture_output=True, text=True)
@@ -123,7 +220,7 @@ def send_file_rsync(local_path, remote_path):
 
 def update_remote_clipboard(remote_host, remote_path):
     try:
-        # 首先获取远程主机上的 HOME 路径
+        # 获取远程主机上的 HOME 路径
         get_home_cmd = ["ssh", remote_host, "echo $HOME"]
         home_result = subprocess.run(
             get_home_cmd, capture_output=True, text=True
