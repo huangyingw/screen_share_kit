@@ -8,6 +8,9 @@ import logging
 # 常量定义
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = os.path.join(SCRIPT_DIR, "screen_capturer.log")
+VENV_NAME = "venv"
+REQUIREMENTS_FILE = "requirements.txt"
+VENV_PATH = os.path.join(SCRIPT_DIR, VENV_NAME)
 
 # 设置日志
 logging.basicConfig(
@@ -15,12 +18,6 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
-
-# 常量定义
-VENV_NAME = "venv"
-REQUIREMENTS_FILE = "requirements.txt"
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-VENV_PATH = os.path.join(SCRIPT_DIR, VENV_NAME)
 
 
 def create_venv_if_not_exists():
@@ -125,8 +122,6 @@ def take_screenshot_and_send():
                 CGWindowListCreateImage,
                 kCGWindowImageDefault,
                 kCGWindowListOptionIncludingWindow,
-            )
-            from Quartz import (
                 CGImageDestinationCreateWithURL,
                 CGImageDestinationAddImage,
                 CGImageDestinationFinalize,
