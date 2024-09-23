@@ -1,3 +1,4 @@
 Pillow
 paramiko
 pyautogui
+pyobjc
