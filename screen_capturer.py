@@ -169,9 +169,6 @@ def take_screenshot_and_send():
             logging.error("This script only supports macOS.")
             return
 
-        # 将截图复制到本地剪贴板
-        copy_screenshot_to_clipboard(local_path)
-
         remote_host = "macmini.local"
         remote_screenshots_dir = "~/screenshots"
 
@@ -190,25 +187,6 @@ def take_screenshot_and_send():
             logging.error("Failed to send screenshots directory.")
     except Exception as e:
         logging.exception(f"Error taking or sending screenshot: {e}")
-
-
-def copy_screenshot_to_clipboard(image_path):
-    logging.info("Copying screenshot to local clipboard...")
-    try:
-        if sys.platform == "darwin":  # macOS
-            subprocess.run(
-                [
-                    "osascript",
-                    "-e",
-                    f'set the clipboard to (read (POSIX file "{image_path}") as JPEG picture)',
-                ],
-                check=True,
-            )
-            logging.info("Screenshot copied to local clipboard successfully.")
-        else:
-            logging.error("This script only supports macOS.")
-    except Exception as e:
-        logging.exception(f"Error copying screenshot to local clipboard: {e}")
 
 
 def send_file_rsync(local_path, remote_path):
