@@ -4,6 +4,7 @@ import subprocess
 import sys
 import venv
 import logging
+from datetime import datetime
 
 # 常量定义
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -11,6 +12,7 @@ LOG_FILE = os.path.join(SCRIPT_DIR, "screen_capturer.log")
 VENV_NAME = "venv"
 REQUIREMENTS_FILE = "requirements.txt"
 VENV_PATH = os.path.join(SCRIPT_DIR, VENV_NAME)
+SCREENSHOTS_DIR = os.path.join(SCRIPT_DIR, "screenshots")
 
 # 设置日志
 logging.basicConfig(
@@ -108,7 +110,13 @@ def get_active_window():
 def take_screenshot_and_send():
     logging.info("Attempting to take a screenshot...")
     try:
-        local_path = os.path.join(SCRIPT_DIR, "screenshot.png")
+        # 创建截图目录（如果不存在）
+        os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+
+        # 生成时间戳文件名
+        timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        filename = f"screenshot_{timestamp}.png"
+        local_path = os.path.join(SCREENSHOTS_DIR, filename)
 
         if sys.platform == "darwin":  # macOS
             window_id, bounds = get_active_window()
@@ -165,16 +173,21 @@ def take_screenshot_and_send():
         copy_screenshot_to_clipboard(local_path)
 
         remote_host = "macmini.local"
-        remote_path = "~/screenshot.png"
+        remote_screenshots_dir = "~/screenshots"
 
-        if send_file_rsync(local_path, f"{remote_host}:{remote_path}"):
-            logging.info("Screenshot sent successfully.")
-            if update_remote_clipboard(remote_host, remote_path):
+        # 修正 rsync 命令，确保只复制目录内容
+        if send_file_rsync(
+            f"{SCREENSHOTS_DIR}/", f"{remote_host}:{remote_screenshots_dir}/"
+        ):
+            logging.info("Screenshots directory sent successfully.")
+            if update_remote_clipboard(
+                remote_host, remote_screenshots_dir, filename
+            ):
                 logging.info("Remote clipboard updated successfully.")
             else:
                 logging.error("Failed to update remote clipboard.")
         else:
-            logging.error("Failed to send screenshot.")
+            logging.error("Failed to send screenshots directory.")
     except Exception as e:
         logging.exception(f"Error taking or sending screenshot: {e}")
 
@@ -213,7 +226,7 @@ def send_file_rsync(local_path, remote_path):
         return False
 
 
-def update_remote_clipboard(remote_host, remote_path):
+def update_remote_clipboard(remote_host, remote_screenshots_dir, filename):
     try:
         # 获取远程主机上的 HOME 路径
         get_home_cmd = ["ssh", remote_host, "echo $HOME"]
@@ -225,12 +238,18 @@ def update_remote_clipboard(remote_host, remote_path):
             return False
 
         remote_home = home_result.stdout.strip()
-        full_remote_path = f"{remote_home}/{os.path.basename(remote_path)}"
+        full_remote_dir = remote_screenshots_dir.replace("~", remote_home)
+        full_remote_path = os.path.join(full_remote_dir, filename)
+
+        # 确保路径格式正确，使用 POSIX 格式
+        posix_full_remote_path = (
+            full_remote_path.replace(" ", "\\ ")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+        )
 
         # 使用完整的绝对路径更新剪贴板
-        osascript_cmd = f"""
-        osascript -e 'set the clipboard to (read (POSIX file "{full_remote_path}") as JPEG picture)'
-        """
+        osascript_cmd = f"osascript -e 'set the clipboard to (read (POSIX file \"{posix_full_remote_path}\") as JPEG picture)'"
         command = ["ssh", remote_host, osascript_cmd]
 
         result = subprocess.run(command, capture_output=True, text=True)
